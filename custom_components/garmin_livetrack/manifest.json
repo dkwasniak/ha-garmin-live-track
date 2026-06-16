@@ -1,0 +1,11 @@
+{
+  "domain": "garmin_livetrack",
+  "name": "Garmin LiveTrack",
+  "version": "1.0.0",
+  "documentation": "https://github.com/dkwasniak/ha-garmin-livetrack",
+  "issue_tracker": "https://github.com/dkwasniak/ha-garmin-livetrack/issues",
+  "codeowners": ["@dkwasniak"],
+  "requirements": [],
+  "iot_class": "cloud_polling",
+  "config_flow": true
+}
