@@ -17,7 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import GarminConfigEntry
-from .const import CONF_TRACKER_NAME, DEFAULT_TRACKER_NAME, DOMAIN
+from .const import CONF_TRACKER_NAME, DEFAULT_TRACKER_NAME, DOMAIN, INTEGRATION_VERSION
 from .coordinator import GarminLiveTrackCoordinator, GarminLiveTrackData
 
 
@@ -96,6 +96,9 @@ class GarminSensor(CoordinatorEntity[GarminLiveTrackCoordinator], SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=device_name,
+            manufacturer="Garmin",
+            model="LiveTrack",
+            sw_version=INTEGRATION_VERSION,
         )
 
     @property
