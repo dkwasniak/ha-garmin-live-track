@@ -37,7 +37,7 @@
       "speed": { "name": "Speed" },
       "heart_rate": { "name": "Heart rate" },
       "altitude": { "name": "Altitude" },
-      "session_url": { "name": "Session URL" },
+      "session_url": { "name": "Open map" },
       "last_updated": { "name": "Last updated" }
     }
   }

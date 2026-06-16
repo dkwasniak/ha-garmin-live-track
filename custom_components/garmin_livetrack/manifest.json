@@ -1,7 +1,7 @@
 {
   "domain": "garmin_livetrack",
   "name": "Garmin LiveTrack",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "documentation": "https://github.com/dkwasniak/ha-garmin-livetrack",
   "issue_tracker": "https://github.com/dkwasniak/ha-garmin-livetrack/issues",
   "codeowners": ["@dkwasniak"],
