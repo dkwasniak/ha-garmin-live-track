@@ -6,7 +6,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import GarminConfigEntry
-from .const import CONF_TRACKER_NAME, DEFAULT_TRACKER_NAME, DOMAIN
+from .const import CONF_TRACKER_NAME, DEFAULT_TRACKER_NAME, DOMAIN, INTEGRATION_VERSION
 from .coordinator import GarminLiveTrackCoordinator
 
 
@@ -30,6 +30,9 @@ class StopTrackingButton(ButtonEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=name,
+            manufacturer="Garmin",
+            model="LiveTrack",
+            sw_version=INTEGRATION_VERSION,
         )
 
     async def async_press(self) -> None:
