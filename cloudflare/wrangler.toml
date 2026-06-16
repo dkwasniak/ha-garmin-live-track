@@ -1,0 +1,6 @@
+name = "garmin-livetrack"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+  # Email routing trigger konfiguruje się w panelu Cloudflare, nie tutaj

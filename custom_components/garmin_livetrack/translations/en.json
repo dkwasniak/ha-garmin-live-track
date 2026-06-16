@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Garmin LiveTrack",
+        "description": "Set up Garmin LiveTrack integration.",
+        "data": {
+          "tracker_name": "Tracker name",
+          "notify_service": "Notification service (e.g. notify.mobile_app_pixel_9)"
+        }
+      },
+      "webhook": {
+        "title": "Webhook URL",
+        "description": "Copy this URL into your Cloudflare Email Worker as `HA_WEBHOOK_URL`:\n\n`{webhook_url}`"
+      }
+    },
+    "abort": {
+      "already_configured": "Garmin LiveTrack is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Garmin LiveTrack options",
+        "data": {
+          "notify_service": "Notification service",
+          "poll_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "stop_tracking": { "name": "Stop tracking" }
+    },
+    "sensor": {
+      "speed": { "name": "Speed" },
+      "heart_rate": { "name": "Heart rate" },
+      "altitude": { "name": "Altitude" },
+      "session_url": { "name": "Session URL" },
+      "last_updated": { "name": "Last updated" }
+    }
+  }
+}
