@@ -13,6 +13,7 @@ from .const import (
     GARMIN_API_HEADERS,
     GARMIN_API_URL,
     GARMIN_PAGE_HEADERS,
+    GARMIN_SESSION_URL,
     DEFAULT_POLL_INTERVAL,
     SESSION_TIMEOUT_HOURS,
 )
@@ -32,7 +33,16 @@ class GarminLiveTrackData:
     token: str | None = None
     session_url: str | None = None
     session_started: datetime | None = None
+    session_ended: datetime | None = None
     active: bool = False
+
+    @property
+    def session_status(self) -> str:
+        if self.active:
+            return "active"
+        if self.session_ended:
+            return "ended"
+        return "no_active_session"
 
 
 class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
@@ -54,6 +64,7 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
         self.data.token = token or _extract_token_from_url(session_url)
         self.data.session_url = session_url
         self.data.session_started = datetime.now(tz=timezone.utc)
+        self.data.session_ended = None
         self.data.last_track_point_time = None
         self.data.active = True
         self._cookie_jar = aiohttp.CookieJar()
@@ -65,25 +76,44 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
         self.data.token = None
         self.data.session_url = None
         self.data.session_started = None
+        self.data.session_ended = None
         self.data.last_track_point_time = None
         self.data.active = False
+        self._clear_position_data()
+        self._cookie_jar = aiohttp.CookieJar()
+        self._csrf_token = None
+        _LOGGER.info("LiveTrack session stopped")
+
+    def _mark_session_ended(self, ended: datetime | None = None) -> None:
+        self.data.active = False
+        self.data.session_ended = ended or datetime.now(tz=timezone.utc)
+        self._clear_position_data()
+        _LOGGER.info("LiveTrack session ended: %s", self.data.session_id)
+
+    def _clear_position_data(self) -> None:
         self.data.lat = None
         self.data.lon = None
         self.data.speed = None
         self.data.altitude = None
         self.data.heart_rate = None
-        self._cookie_jar = aiohttp.CookieJar()
-        self._csrf_token = None
-        _LOGGER.info("LiveTrack session stopped")
+        self.data.last_updated = None
+        self.data.last_track_point_time = None
 
     def _is_session_expired(self) -> bool:
-        if not self.data.session_started:
+        reference_time = self.data.session_ended or self.data.session_started
+        if not reference_time:
             return False
-        age = datetime.now(tz=timezone.utc) - self.data.session_started
+        age = datetime.now(tz=timezone.utc) - reference_time
         return age > timedelta(hours=SESSION_TIMEOUT_HOURS)
 
     async def _async_update_data(self) -> GarminLiveTrackData:
-        if not self.data.session_id or not self.data.active:
+        if not self.data.session_id:
+            return self.data
+
+        if not self.data.active:
+            if self._is_session_expired():
+                _LOGGER.info("LiveTrack ended session expired, clearing")
+                self.stop_session()
             return self.data
 
         if not self.data.token:
@@ -110,6 +140,14 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
             async with aiohttp.ClientSession(cookie_jar=self._cookie_jar) as session:
                 if not self._csrf_token:
                     await self._async_bootstrap_garmin_session(session)
+
+                session_data = await self._async_fetch_garmin_session(session)
+                ended = _get_session_end_time(session_data)
+                if ended and ended <= datetime.now(tz=timezone.utc):
+                    self._mark_session_ended(ended)
+                    if self._is_session_expired():
+                        self.stop_session()
+                    return self.data
 
                 for attempt in range(2):
                     headers = {
@@ -185,6 +223,44 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
             if not self._csrf_token:
                 raise UpdateFailed("Garmin session page did not include a CSRF token")
 
+    async def _async_fetch_garmin_session(
+        self, session: aiohttp.ClientSession
+    ) -> dict:
+        url = GARMIN_SESSION_URL.format(session_id=self.data.session_id)
+        headers = {
+            **GARMIN_API_HEADERS,
+            "Referer": self.data.session_url or "",
+            "Livetrack-Csrf-Token": self._csrf_token or "",
+        }
+        params = {"token": self.data.token}
+
+        async with session.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            if resp.status == 403:
+                self._cookie_jar.clear()
+                self._csrf_token = None
+                await self._async_bootstrap_garmin_session(session)
+                headers["Livetrack-Csrf-Token"] = self._csrf_token or ""
+                async with session.get(
+                    url,
+                    headers=headers,
+                    params=params,
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as retry_resp:
+                    if retry_resp.status != 200:
+                        raise UpdateFailed(
+                            f"Garmin session API returned {retry_resp.status}"
+                        )
+                    return await retry_resp.json()
+
+            if resp.status != 200:
+                raise UpdateFailed(f"Garmin session API returned {resp.status}")
+            return await resp.json()
+
 
 def _extract_token_from_url(session_url: str) -> str | None:
     match = re.search(r"/token/([A-Za-z0-9]+)", session_url)
@@ -194,6 +270,13 @@ def _extract_token_from_url(session_url: str) -> str | None:
 def _extract_csrf_token(html: str) -> str | None:
     match = re.search(r'<meta name="csrf-token" content="([^"]+)"', html)
     return match.group(1) if match else None
+
+
+def _get_session_end_time(session_data: dict) -> datetime | None:
+    end = session_data.get("end")
+    if not end:
+        return None
+    return _parse_garmin_time(end)
 
 
 def _parse_garmin_time(value: str) -> datetime:

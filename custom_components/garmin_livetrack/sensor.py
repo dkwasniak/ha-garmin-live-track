@@ -44,6 +44,14 @@ SENSORS: tuple[GarminSensorDescription, ...] = (
         value_fn=lambda d: d.heart_rate,
     ),
     GarminSensorDescription(
+        key="session_status",
+        translation_key="session_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=["active", "ended", "no_active_session"],
+        icon="mdi:map-clock",
+        value_fn=lambda d: d.session_status,
+    ),
+    GarminSensorDescription(
         key="altitude",
         translation_key="altitude",
         device_class=SensorDeviceClass.DISTANCE,
