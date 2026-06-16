@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-import time
+import re
 from datetime import datetime, timedelta, timezone
 
 import aiohttp
@@ -12,6 +12,7 @@ from .const import (
     DOMAIN,
     GARMIN_API_HEADERS,
     GARMIN_API_URL,
+    GARMIN_PAGE_HEADERS,
     DEFAULT_POLL_INTERVAL,
     SESSION_TIMEOUT_HOURS,
 )
@@ -26,7 +27,9 @@ class GarminLiveTrackData:
     altitude: float | None = None
     heart_rate: int | None = None
     last_updated: datetime | None = None
+    last_track_point_time: datetime | None = None
     session_id: str | None = None
+    token: str | None = None
     session_url: str | None = None
     session_started: datetime | None = None
     active: bool = False
@@ -41,24 +44,36 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
             update_interval=timedelta(seconds=poll_interval),
         )
         self.data = GarminLiveTrackData()
+        self._cookie_jar = aiohttp.CookieJar()
+        self._csrf_token: str | None = None
 
-    def start_session(self, session_id: str, session_url: str) -> None:
+    def start_session(
+        self, session_id: str, session_url: str, token: str | None = None
+    ) -> None:
         self.data.session_id = session_id
+        self.data.token = token or _extract_token_from_url(session_url)
         self.data.session_url = session_url
         self.data.session_started = datetime.now(tz=timezone.utc)
+        self.data.last_track_point_time = None
         self.data.active = True
+        self._cookie_jar = aiohttp.CookieJar()
+        self._csrf_token = None
         _LOGGER.info("LiveTrack session started: %s", session_id)
 
     def stop_session(self) -> None:
         self.data.session_id = None
+        self.data.token = None
         self.data.session_url = None
         self.data.session_started = None
+        self.data.last_track_point_time = None
         self.data.active = False
         self.data.lat = None
         self.data.lon = None
         self.data.speed = None
         self.data.altitude = None
         self.data.heart_rate = None
+        self._cookie_jar = aiohttp.CookieJar()
+        self._csrf_token = None
         _LOGGER.info("LiveTrack session stopped")
 
     def _is_session_expired(self) -> bool:
@@ -71,43 +86,123 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
         if not self.data.session_id or not self.data.active:
             return self.data
 
+        if not self.data.token:
+            _LOGGER.warning("LiveTrack session has no token, cannot poll Garmin API")
+            return self.data
+
         if self._is_session_expired():
             _LOGGER.info("LiveTrack session expired, stopping")
             self.stop_session()
             return self.data
 
         url = GARMIN_API_URL.format(session_id=self.data.session_id)
-        params = {"requestTime": int(time.time() * 1000)}
+        begin = self.data.last_track_point_time or (
+            self.data.session_started - timedelta(minutes=5)
+            if self.data.session_started
+            else datetime.now(tz=timezone.utc)
+        )
+        params = {
+            "token": self.data.token,
+            "begin": _format_garmin_time(begin or datetime.now(tz=timezone.utc)),
+        }
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url,
-                    headers=GARMIN_API_HEADERS,
-                    params=params,
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as resp:
-                    if resp.status == 404:
-                        _LOGGER.debug("No trackpoints yet for session %s", self.data.session_id)
+            async with aiohttp.ClientSession(cookie_jar=self._cookie_jar) as session:
+                if not self._csrf_token:
+                    await self._async_bootstrap_garmin_session(session)
+
+                for attempt in range(2):
+                    headers = {
+                        **GARMIN_API_HEADERS,
+                        "Referer": self.data.session_url or "",
+                        "Livetrack-Csrf-Token": self._csrf_token or "",
+                    }
+                    async with session.get(
+                        url,
+                        headers=headers,
+                        params=params,
+                        timeout=aiohttp.ClientTimeout(total=10),
+                    ) as resp:
+                        if resp.status == 403 and attempt == 0:
+                            self._cookie_jar.clear()
+                            self._csrf_token = None
+                            await self._async_bootstrap_garmin_session(session)
+                            continue
+
+                        if resp.status == 404:
+                            _LOGGER.debug(
+                                "No trackpoints yet for session %s", self.data.session_id
+                            )
+                            return self.data
+
+                        if resp.status != 200:
+                            raise UpdateFailed(f"Garmin API returned {resp.status}")
+
+                        body = await resp.json()
+                        trackpoints = body.get("trackPoints") or []
+                        if not trackpoints:
+                            return self.data
+
+                        latest = trackpoints[-1]
+                        position = latest.get("position") or {}
+                        self.data.lat = position.get("lat")
+                        self.data.lon = position.get("lon")
+                        self.data.speed = latest.get(
+                            "speedMetersPerSec", latest.get("speed")
+                        )
+                        self.data.altitude = latest.get("altitude")
+                        self.data.heart_rate = latest.get(
+                            "heartRateBeatsPerMin", latest.get("heartRate")
+                        )
+                        if latest.get("dateTime"):
+                            self.data.last_track_point_time = _parse_garmin_time(
+                                latest["dateTime"]
+                            )
+                        self.data.last_updated = datetime.now(tz=timezone.utc)
                         return self.data
-
-                    if resp.status != 200:
-                        raise UpdateFailed(f"Garmin API returned {resp.status}")
-
-                    body = await resp.json()
-                    trackpoints = (body.get("trackPointList") or {}).get("trackPoints") or []
-                    if not trackpoints:
-                        return self.data
-
-                    latest = trackpoints[-1]
-                    self.data.lat = latest.get("lat")
-                    self.data.lon = latest.get("lon")
-                    self.data.speed = latest.get("speed")
-                    self.data.altitude = latest.get("altitude")
-                    self.data.heart_rate = latest.get("heartRate")
-                    self.data.last_updated = datetime.now(tz=timezone.utc)
 
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Error communicating with Garmin API: {err}") from err
 
         return self.data
+
+    async def _async_bootstrap_garmin_session(
+        self, session: aiohttp.ClientSession
+    ) -> None:
+        if not self.data.session_url:
+            raise UpdateFailed("LiveTrack session URL is missing")
+
+        async with session.get(
+            self.data.session_url,
+            headers=GARMIN_PAGE_HEADERS,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            if resp.status != 200:
+                raise UpdateFailed(f"Garmin session page returned {resp.status}")
+
+            html = await resp.text()
+            self._csrf_token = _extract_csrf_token(html)
+            if not self._csrf_token:
+                raise UpdateFailed("Garmin session page did not include a CSRF token")
+
+
+def _extract_token_from_url(session_url: str) -> str | None:
+    match = re.search(r"/token/([A-Za-z0-9]+)", session_url)
+    return match.group(1) if match else None
+
+
+def _extract_csrf_token(html: str) -> str | None:
+    match = re.search(r'<meta name="csrf-token" content="([^"]+)"', html)
+    return match.group(1) if match else None
+
+
+def _parse_garmin_time(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _format_garmin_time(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace(
+        "+00:00", "Z"
+    )

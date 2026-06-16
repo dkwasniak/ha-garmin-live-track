@@ -64,12 +64,13 @@ def _make_webhook_handler(hass, coordinator, notify_service, tracker_name):
 
         session_id = data.get("session_id")
         session_url = data.get("session_url")
+        token = data.get("token")
 
         if not session_id or not session_url:
             _LOGGER.warning("Garmin LiveTrack webhook: missing session_id or session_url")
             return
 
-        coordinator.start_session(session_id, session_url)
+        coordinator.start_session(session_id, session_url, token)
         await coordinator.async_refresh()
 
         if notify_service:
