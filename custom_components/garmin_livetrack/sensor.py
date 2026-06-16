@@ -54,7 +54,8 @@ SENSORS: tuple[GarminSensorDescription, ...] = (
     GarminSensorDescription(
         key="session_url",
         translation_key="session_url",
-        icon="mdi:link",
+        device_class=SensorDeviceClass.URL,
+        icon="mdi:map-marker-path",
         value_fn=lambda d: d.session_url,
     ),
     GarminSensorDescription(
