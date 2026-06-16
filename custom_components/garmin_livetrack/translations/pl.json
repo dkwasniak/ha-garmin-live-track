@@ -36,6 +36,7 @@
     "sensor": {
       "speed": { "name": "Prędkość" },
       "heart_rate": { "name": "Tętno" },
+      "session_status": { "name": "Status sesji" },
       "altitude": { "name": "Wysokość" },
       "session_url": { "name": "Otwórz mapę" },
       "last_updated": { "name": "Ostatnia aktualizacja" }

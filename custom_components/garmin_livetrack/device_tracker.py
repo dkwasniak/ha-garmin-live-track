@@ -61,6 +61,7 @@ class GarminTracker(CoordinatorEntity[GarminLiveTrackCoordinator], TrackerEntity
         data = self.coordinator.data
         return {
             "session_url": data.session_url,
+            "session_status": data.session_status,
             "speed": data.speed,
             "altitude": data.altitude,
             "heart_rate": data.heart_rate,
