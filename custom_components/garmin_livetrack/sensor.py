@@ -46,8 +46,6 @@ SENSORS: tuple[GarminSensorDescription, ...] = (
     GarminSensorDescription(
         key="session_status",
         translation_key="session_status",
-        device_class=SensorDeviceClass.ENUM,
-        options=["active", "ended", "no_active_session"],
         icon="mdi:map-clock",
         value_fn=lambda d: d.session_status,
     ),
@@ -62,7 +60,6 @@ SENSORS: tuple[GarminSensorDescription, ...] = (
     GarminSensorDescription(
         key="session_url",
         translation_key="session_url",
-        device_class=SensorDeviceClass.URL,
         icon="mdi:map-marker-path",
         value_fn=lambda d: d.session_url,
     ),
