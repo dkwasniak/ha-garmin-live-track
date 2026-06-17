@@ -1,5 +1,5 @@
 DOMAIN = "garmin_livetrack"
-INTEGRATION_VERSION = "1.0.6"
+INTEGRATION_VERSION = "1.1.0"
 
 GARMIN_SESSION_URL = "https://livetrack.garmin.com/api/sessions/{session_id}"
 GARMIN_API_URL = "https://livetrack.garmin.com/api/sessions/{session_id}/track-points/common"
