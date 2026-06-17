@@ -1,5 +1,5 @@
 DOMAIN = "garmin_livetrack"
-INTEGRATION_VERSION = "1.0.5"
+INTEGRATION_VERSION = "1.0.6"
 
 GARMIN_SESSION_URL = "https://livetrack.garmin.com/api/sessions/{session_id}"
 GARMIN_API_URL = "https://livetrack.garmin.com/api/sessions/{session_id}/track-points/common"
@@ -16,7 +16,10 @@ GARMIN_PAGE_HEADERS = {
 CONF_NOTIFY_SERVICE = "notify_service"
 CONF_POLL_INTERVAL = "poll_interval"
 CONF_TRACKER_NAME = "tracker_name"
+CONF_ZONE_ENTITY = "zone_entity"
+CONF_ZONE_POLL_INTERVAL = "zone_poll_interval"
 
-DEFAULT_POLL_INTERVAL = 60
+DEFAULT_POLL_INTERVAL = 20
+DEFAULT_ZONE_POLL_INTERVAL = 4
 DEFAULT_TRACKER_NAME = "Garmin"
 SESSION_TIMEOUT_HOURS = 24

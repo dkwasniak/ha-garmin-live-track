@@ -13,8 +13,11 @@ from .const import (
     CONF_NOTIFY_SERVICE,
     CONF_POLL_INTERVAL,
     CONF_TRACKER_NAME,
+    CONF_ZONE_ENTITY,
+    CONF_ZONE_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_TRACKER_NAME,
+    DEFAULT_ZONE_POLL_INTERVAL,
     DOMAIN,
 )
 
@@ -94,6 +97,16 @@ class GarminLiveTrackOptionsFlow(OptionsFlow):
                         CONF_POLL_INTERVAL,
                         default=options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
                     ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
+                    vol.Optional(
+                        CONF_ZONE_ENTITY,
+                        default=options.get(CONF_ZONE_ENTITY, ""),
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="zone")
+                    ),
+                    vol.Required(
+                        CONF_ZONE_POLL_INTERVAL,
+                        default=options.get(CONF_ZONE_POLL_INTERVAL, DEFAULT_ZONE_POLL_INTERVAL),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=2, max=60)),
                 }
             ),
         )

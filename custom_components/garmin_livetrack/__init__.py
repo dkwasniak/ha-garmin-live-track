@@ -8,7 +8,16 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import get_url
 
 from .config_flow import CONF_WEBHOOK_ID
-from .const import CONF_NOTIFY_SERVICE, CONF_POLL_INTERVAL, CONF_TRACKER_NAME, DEFAULT_POLL_INTERVAL, DOMAIN
+from .const import (
+    CONF_NOTIFY_SERVICE,
+    CONF_POLL_INTERVAL,
+    CONF_TRACKER_NAME,
+    CONF_ZONE_ENTITY,
+    CONF_ZONE_POLL_INTERVAL,
+    DEFAULT_POLL_INTERVAL,
+    DEFAULT_ZONE_POLL_INTERVAL,
+    DOMAIN,
+)
 from .coordinator import GarminLiveTrackCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,7 +29,9 @@ GarminConfigEntry = ConfigEntry[GarminLiveTrackCoordinator]
 
 async def async_setup_entry(hass: HomeAssistant, entry: GarminConfigEntry) -> bool:
     poll_interval = entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
-    coordinator = GarminLiveTrackCoordinator(hass, poll_interval)
+    zone_entity = entry.options.get(CONF_ZONE_ENTITY) or None
+    zone_poll_interval = entry.options.get(CONF_ZONE_POLL_INTERVAL, DEFAULT_ZONE_POLL_INTERVAL)
+    coordinator = GarminLiveTrackCoordinator(hass, poll_interval, zone_entity, zone_poll_interval)
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator

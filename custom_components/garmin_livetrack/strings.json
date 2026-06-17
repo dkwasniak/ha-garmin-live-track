@@ -24,7 +24,9 @@
         "title": "Garmin LiveTrack options",
         "data": {
           "notify_service": "Notification service",
-          "poll_interval": "Polling interval (seconds)"
+          "poll_interval": "Polling interval (seconds)",
+          "zone_entity": "Zone entity (fast polling when inside)",
+          "zone_poll_interval": "Fast polling interval in zone (seconds)"
         }
       }
     }
@@ -39,7 +41,15 @@
       "session_status": { "name": "Session status" },
       "altitude": { "name": "Altitude" },
       "session_url": { "name": "Open map" },
-      "last_updated": { "name": "Last updated" }
+      "last_updated": { "name": "Last updated" },
+      "polling_mode": {
+        "name": "Polling mode",
+        "state": {
+          "off": "Off",
+          "normal": "Normal",
+          "fast": "Fast"
+        }
+      }
     }
   }
 }

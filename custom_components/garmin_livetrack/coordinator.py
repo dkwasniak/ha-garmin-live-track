@@ -8,6 +8,8 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from homeassistant.util.location import distance as location_distance
+
 from .const import (
     DOMAIN,
     GARMIN_API_HEADERS,
@@ -15,6 +17,7 @@ from .const import (
     GARMIN_PAGE_HEADERS,
     GARMIN_SESSION_URL,
     DEFAULT_POLL_INTERVAL,
+    DEFAULT_ZONE_POLL_INTERVAL,
     SESSION_TIMEOUT_HOURS,
 )
 
@@ -35,6 +38,7 @@ class GarminLiveTrackData:
     session_started: datetime | None = None
     session_ended: datetime | None = None
     active: bool = False
+    polling_mode: str = "off"
 
     @property
     def session_status(self) -> str:
@@ -46,7 +50,13 @@ class GarminLiveTrackData:
 
 
 class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
-    def __init__(self, hass: HomeAssistant, poll_interval: int = DEFAULT_POLL_INTERVAL) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        poll_interval: int = DEFAULT_POLL_INTERVAL,
+        zone_entity: str | None = None,
+        zone_poll_interval: int = DEFAULT_ZONE_POLL_INTERVAL,
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
@@ -56,6 +66,9 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
         self.data = GarminLiveTrackData()
         self._cookie_jar = aiohttp.CookieJar()
         self._csrf_token: str | None = None
+        self._default_poll_interval = poll_interval
+        self._zone_entity = zone_entity or None
+        self._zone_poll_interval = zone_poll_interval
 
     def start_session(
         self, session_id: str, session_url: str, token: str | None = None
@@ -98,6 +111,30 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
         self.data.heart_rate = None
         self.data.last_updated = None
         self.data.last_track_point_time = None
+        self.data.polling_mode = "off"
+        self.update_interval = timedelta(seconds=self._default_poll_interval)
+
+    def _update_poll_interval(self) -> None:
+        if not self.data.active:
+            self.data.polling_mode = "off"
+            self.update_interval = timedelta(seconds=self._default_poll_interval)
+            return
+
+        if self._zone_entity and self.data.lat is not None and self.data.lon is not None:
+            zone_state = self.hass.states.get(self._zone_entity)
+            if zone_state:
+                zone_lat = zone_state.attributes.get("latitude")
+                zone_lon = zone_state.attributes.get("longitude")
+                zone_radius = zone_state.attributes.get("radius", 100)
+                if zone_lat is not None and zone_lon is not None:
+                    dist = location_distance(self.data.lat, self.data.lon, zone_lat, zone_lon)
+                    if dist <= zone_radius:
+                        self.data.polling_mode = "fast"
+                        self.update_interval = timedelta(seconds=self._zone_poll_interval)
+                        return
+
+        self.data.polling_mode = "normal"
+        self.update_interval = timedelta(seconds=self._default_poll_interval)
 
     def _is_session_expired(self) -> bool:
         reference_time = self.data.session_ended or self.data.session_started
@@ -171,6 +208,7 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
                             _LOGGER.debug(
                                 "No trackpoints yet for session %s", self.data.session_id
                             )
+                            self._update_poll_interval()
                             return self.data
 
                         if resp.status != 200:
@@ -179,6 +217,7 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
                         body = await resp.json()
                         trackpoints = body.get("trackPoints") or []
                         if not trackpoints:
+                            self._update_poll_interval()
                             return self.data
 
                         latest = trackpoints[-1]
@@ -197,11 +236,13 @@ class GarminLiveTrackCoordinator(DataUpdateCoordinator[GarminLiveTrackData]):
                                 latest["dateTime"]
                             )
                         self.data.last_updated = datetime.now(tz=timezone.utc)
+                        self._update_poll_interval()
                         return self.data
 
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Error communicating with Garmin API: {err}") from err
 
+        self._update_poll_interval()
         return self.data
 
     async def _async_bootstrap_garmin_session(
