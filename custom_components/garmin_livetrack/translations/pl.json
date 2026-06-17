@@ -24,7 +24,9 @@
         "title": "Opcje Garmin LiveTrack",
         "data": {
           "notify_service": "Usługa powiadomień",
-          "poll_interval": "Interwał odpytywania (sekundy)"
+          "poll_interval": "Interwał odpytywania (sekundy)",
+          "zone_entity": "Encja strefy (szybkie odpytywanie gdy w strefie)",
+          "zone_poll_interval": "Szybki interwał w strefie (sekundy)"
         }
       }
     }
@@ -39,7 +41,15 @@
       "session_status": { "name": "Status sesji" },
       "altitude": { "name": "Wysokość" },
       "session_url": { "name": "Otwórz mapę" },
-      "last_updated": { "name": "Ostatnia aktualizacja" }
+      "last_updated": { "name": "Ostatnia aktualizacja" },
+      "polling_mode": {
+        "name": "Tryb odpytywania",
+        "state": {
+          "off": "Wyłączony",
+          "normal": "Normalny",
+          "fast": "Szybki"
+        }
+      }
     }
   }
 }

@@ -69,6 +69,12 @@ SENSORS: tuple[GarminSensorDescription, ...] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda d: d.last_updated,
     ),
+    GarminSensorDescription(
+        key="polling_mode",
+        translation_key="polling_mode",
+        icon="mdi:timer-sync-outline",
+        value_fn=lambda d: d.polling_mode,
+    ),
 )
 
 
