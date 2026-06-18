@@ -1,9 +1,8 @@
 // Cloudflare Email Worker — Garmin LiveTrack → Home Assistant
-
-const HA_WEBHOOK_URL = 'REDACTED_WEBHOOK_URL';
+// HA_WEBHOOK_URL is read from Cloudflare Worker secret — set via: wrangler secret put HA_WEBHOOK_URL
 
 export default {
-  async email(message, _env, _ctx) {
+  async email(message, env, _ctx) {
     const from = message.from;
 
     if (!from.includes('garmin.com')) {
@@ -40,7 +39,7 @@ export default {
       timestamp: new Date().toISOString(),
     };
 
-    await sendToHA(payload);
+    await sendToHA(payload, env.HA_WEBHOOK_URL);
   }
 };
 
@@ -132,8 +131,8 @@ function buildCookieHeader(headers) {
     .join('; ');
 }
 
-async function sendToHA(payload) {
-  const resp = await fetch(HA_WEBHOOK_URL, {
+async function sendToHA(payload, webhookUrl) {
+  const resp = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

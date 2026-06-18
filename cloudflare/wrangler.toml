@@ -4,3 +4,6 @@ compatibility_date = "2024-01-01"
 
 [triggers]
   # Email routing trigger konfiguruje się w panelu Cloudflare, nie tutaj
+
+# Secrets (nie przechowywane tutaj — ustaw przez: wrangler secret put HA_WEBHOOK_URL)
+# HA_WEBHOOK_URL — pełny URL webhooka Home Assistant, np. https://<twoja-domena>/api/webhook/<id>
